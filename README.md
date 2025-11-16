@@ -51,10 +51,5 @@ make proto   # requires buf; pulls latest from driftq-proto
 
 ---
 
-## Contributing
-Contributions are welcome! Please open an issue or pull request to discuss proposed changes. Ensure code passes `go vet` and `go test`.
-
----
-
 ## License
 Licensed under the [Apache License 2.0](./LICENSE).
