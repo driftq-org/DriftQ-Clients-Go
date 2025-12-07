@@ -6,7 +6,7 @@ import (
 	"time"
 
 	// TODO go get the below
-	"github.com/BehnamAxo/driftq-clients-go/pkg/driftq"
+	"github.com/driftq-org/DriftQ-Clients-Go/pk/driftq"
 )
 
 func main() {
