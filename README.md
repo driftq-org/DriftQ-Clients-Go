@@ -17,7 +17,7 @@ Go SDK for **DriftQ** — produce and consume messages, and call admin APIs.
 
 ## Install
 ```bash
-go get github.com/BehnamAxo/driftq-clients-go@latest
+go get github.com/driftq-org/DriftQ-Clients-Go@latest
 ```
 
 ---
