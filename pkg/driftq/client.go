@@ -2,6 +2,8 @@ package driftq
 
 import (
 	"context"
+	"net/http"
+	"strings"
 	"time"
 )
 
@@ -17,37 +19,49 @@ type RetryPolicy struct {
 	MaxBackoff time.Duration
 }
 
-// Config holds client connection options.
 type Config struct {
-	Address string
+	BaseURL string
 	TLS     *TLSConfig
 	Retry   RetryPolicy
 	Timeout time.Duration
 }
 
-// Client is a lightweight handle to DriftQ services.
 type Client struct {
-	cfg Config
-	// TODO: hold gRPC conn, interceptors, etc.
+	cfg     Config
+	baseURL string
+	httpc   *http.Client
 }
 
-// Dial creates a new client. No network is opened in this stub.
 func Dial(_ context.Context, cfg Config) (*Client, error) {
-	return &Client{cfg: cfg}, nil
+	if cfg.BaseURL == "" {
+		cfg.BaseURL = "http://localhost:8080"
+	}
+	base := strings.TrimRight(cfg.BaseURL, "/")
+
+	to := cfg.Timeout
+	if to <= 0 {
+		to = 10 * time.Second
+	}
+
+	return &Client{
+		cfg:     cfg,
+		baseURL: base,
+		httpc:   &http.Client{Timeout: to},
+	}, nil
 }
 
-// Close shuts down resources (no-op in this stub).
+// Close shuts down resources (no-op in this stub)
 func (c *Client) Close() error { return nil }
 
-// Producer returns a producer bound to a topic.
+// Producer returns a producer bound to a topic
 func (c *Client) Producer(topic string) *Producer {
 	return &Producer{topic: topic, c: c}
 }
 
-// Consumer returns a consumer bound to a topic/group.
+// Consumer returns a consumer bound to a topic/group
 func (c *Client) Consumer(topic, group string) *Consumer {
 	return &Consumer{topic: topic, group: group, c: c}
 }
 
-// Admin returns an admin client wrapper.
+// Admin returns an admin client wrapper
 func (c *Client) Admin() *Admin { return &Admin{c: c} }

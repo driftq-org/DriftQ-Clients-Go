@@ -11,8 +11,8 @@ import (
 
 func main() {
 	ctx := context.Background()
+	cli, err := driftq.Dial(ctx, driftq.Config{BaseURL: "http://localhost:8080"})
 
-	cli, err := driftq.Dial(ctx, driftq.Config{Address: "localhost:9090"})
 	if err != nil {
 		log.Fatal(err)
 	}
