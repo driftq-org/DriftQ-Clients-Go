@@ -33,7 +33,18 @@ type ProduceResponse struct {
 }
 
 type AckRequest struct {
-	Topic string `json:"topic"`
-	ID    string `json:"id"`
-	Owner string `json:"owner"`
+	Topic     string `json:"topic"`
+	Group     string `json:"group"`
+	Owner     string `json:"owner"`
+	Partition int    `json:"partition"`
+	Offset    int64  `json:"offset"`
+}
+
+type NackRequest struct {
+	Topic     string `json:"topic"`
+	Group     string `json:"group"`
+	Owner     string `json:"owner"`
+	Partition int    `json:"partition"`
+	Offset    int64  `json:"offset"`
+	Reason    string `json:"reason,omitempty"`
 }

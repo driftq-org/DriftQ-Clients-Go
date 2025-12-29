@@ -38,7 +38,7 @@ func Dial(_ context.Context, cfg Config) (*Client, error) {
 	return &Client{
 		cfg:     cfg,
 		baseURL: base,
-		httpc:   &http.Client{Timeout: to},
+		httpc:   &http.Client{},
 	}, nil
 }
 

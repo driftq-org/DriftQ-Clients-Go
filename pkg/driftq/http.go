@@ -10,6 +10,13 @@ import (
 )
 
 func (c *Client) doJSON(ctx context.Context, method, path string, q url.Values, in any, out any) error {
+	// Apply per-request timeout ONLY for non-stream JSON calls
+	if c.cfg.Timeout > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, c.cfg.Timeout)
+		defer cancel()
+	}
+
 	u := c.baseURL + path
 	if len(q) > 0 {
 		u += "?" + q.Encode()
@@ -28,6 +35,7 @@ func (c *Client) doJSON(ctx context.Context, method, path string, q url.Values, 
 	if err != nil {
 		return err
 	}
+
 	req.Header.Set("Accept", "application/json")
 	if in != nil {
 		req.Header.Set("Content-Type", "application/json")
@@ -49,8 +57,10 @@ func (c *Client) doJSON(ctx context.Context, method, path string, q url.Values, 
 		}
 	}
 
-	if out != nil {
-		return json.NewDecoder(resp.Body).Decode(out)
+	// Important: ACK/NACK returns 204 No Content
+	if resp.StatusCode == http.StatusNoContent || out == nil {
+		return nil
 	}
-	return nil
+
+	return json.NewDecoder(resp.Body).Decode(out)
 }
