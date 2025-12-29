@@ -6,7 +6,7 @@ import (
 
 	// TODO go get the below
 
-	"github.com/driftq-org/DriftQ-Clients-Go/pk/driftq"
+	"github.com/driftq-org/DriftQ-Clients-Go/pkg/driftq"
 )
 
 func main() {
