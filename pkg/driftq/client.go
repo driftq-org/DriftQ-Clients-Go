@@ -12,17 +12,9 @@ type TLSConfig struct {
 	// TODO: add fields (CA, cert/key, InsecureSkipVerify, etc.)
 }
 
-// RetryPolicy controls client retry behavior.
-type RetryPolicy struct {
-	Attempts   int
-	MinBackoff time.Duration
-	MaxBackoff time.Duration
-}
-
 type Config struct {
 	BaseURL string
 	TLS     *TLSConfig
-	Retry   RetryPolicy
 	Timeout time.Duration
 }
 
@@ -52,16 +44,3 @@ func Dial(_ context.Context, cfg Config) (*Client, error) {
 
 // Close shuts down resources (no-op in this stub)
 func (c *Client) Close() error { return nil }
-
-// Producer returns a producer bound to a topic
-func (c *Client) Producer(topic string) *Producer {
-	return &Producer{topic: topic, c: c}
-}
-
-// Consumer returns a consumer bound to a topic/group
-func (c *Client) Consumer(topic, group string) *Consumer {
-	return &Consumer{topic: topic, group: group, c: c}
-}
-
-// Admin returns an admin client wrapper
-func (c *Client) Admin() *Admin { return &Admin{c: c} }
