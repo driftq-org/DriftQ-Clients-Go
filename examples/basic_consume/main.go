@@ -41,17 +41,32 @@ func main() {
 			log.Printf("[consume] partition=%d offset=%d key=%s value=%s attempts=%d",
 				m.Partition, m.Offset, m.Key, m.Value, m.Attempts)
 
-			// ACK using the fields Core requires: topic+group+owner+partition+offset
-			if err := cli.Ack(ctx, driftq.AckRequest{
-				Topic:     topic,
-				Group:     group,
-				Owner:     owner,
+			if m.Attempts == 1 {
+				log.Println("[nack] simulate failure, message will redeliver...")
+				err := cli.Nack(ctx, driftq.NackRequest{
+					Topic:     "demo",
+					Group:     "group1",
+					Owner:     "worker-1",
+					Partition: m.Partition,
+					Offset:    m.Offset,
+					Reason:    "testing redelivery",
+				})
+				if err != nil {
+					log.Fatalf("nack error: %v", err)
+				}
+				continue
+			}
+
+			log.Println("[ack] ok, finalizing message")
+			err := cli.Ack(ctx, driftq.AckRequest{
+				Topic:     "demo",
+				Group:     "group1",
+				Owner:     "worker-1",
 				Partition: m.Partition,
 				Offset:    m.Offset,
-			}); err != nil {
-				log.Printf("[ack] failed partition=%d offset=%d: %v", m.Partition, m.Offset, err)
-			} else {
-				log.Printf("[ack] ok partition=%d offset=%d", m.Partition, m.Offset)
+			})
+			if err != nil {
+				log.Fatalf("ack error: %v", err)
 			}
 
 		case err := <-errs:
