@@ -14,9 +14,16 @@ import (
 // ConsumeStream opens /v1/consume and decodes NDJSON items until ctx is cancelled
 // or the server closes the stream.
 //
-// IMPORTANT: this intentionally does NOT use doJSON and does NOT apply c.cfg.Timeout.
+// IMPORTANT: this intentionally does NOT use doJSON.
 // Streaming lifetime must be controlled by ctx (or server-side shutdown), not a generic client timeout.
+//
+// NOTE: We explicitly disable the client's default timeout middleware here.
+// If the caller wants a deadline, they should set it on ctx themselves.
 func (c *Client) ConsumeStream(ctx context.Context, opt ConsumeOptions) (<-chan ConsumeMessage, <-chan error, error) {
+	// Streaming calls must NOT be killed by the client's default timeout middleware.
+	// If you want a deadline, set it on ctx yourself.
+	ctx = WithNoDefaultTimeout(ctx)
+
 	topic := strings.TrimSpace(opt.Topic)
 	group := strings.TrimSpace(opt.Group)
 	owner := strings.TrimSpace(opt.Owner)
@@ -45,7 +52,11 @@ func (c *Client) ConsumeStream(ctx context.Context, opt ConsumeOptions) (<-chan 
 	if err != nil {
 		return nil, nil, err
 	}
+
 	req.Header.Set("Accept", "application/x-ndjson")
+	if ua := c.cfg.UserAgent; ua != "" {
+		req.Header.Set("User-Agent", ua)
+	}
 
 	resp, err := c.httpc.Do(req)
 	if err != nil {
@@ -76,11 +87,9 @@ func (c *Client) ConsumeStream(ctx context.Context, opt ConsumeOptions) (<-chan 
 		for {
 			var m ConsumeMessage
 			if err := dec.Decode(&m); err != nil {
-				// normal shutdown cases
 				if errors.Is(err, io.EOF) || ctx.Err() != nil {
 					return
 				}
-				// report unexpected decode/read errors without deadlocking
 				select {
 				case errs <- err:
 				default:
