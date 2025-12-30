@@ -41,9 +41,11 @@ func NewWorker(cfg WorkerConfig) (*Worker, error) {
 	if cfg.Client == nil {
 		return nil, errors.New("worker: Client is required")
 	}
+
 	if cfg.Handler == nil {
 		return nil, errors.New("worker: Handler is required")
 	}
+
 	if cfg.Consume.Topic == "" || cfg.Consume.Group == "" || cfg.Consume.Owner == "" {
 		return nil, errors.New("worker: ConsumeOptions requires Topic, Group, Owner")
 	}
@@ -130,7 +132,7 @@ func (w *Worker) Run(ctx context.Context) error {
 
 func (w *Worker) handleOne(ctx context.Context, msg ConsumeMessage) {
 	// Derive per-message ctx:
-	// - If message envelope has a deadline, honor it (earlier deadline wins).
+	// - If message envelope has a deadline, honor it (earlier deadline wins)
 	hctx := ctx
 	var cancel func()
 	if dl := envelopeDeadline(msg); !dl.IsZero() {
@@ -138,15 +140,14 @@ func (w *Worker) handleOne(ctx context.Context, msg ConsumeMessage) {
 			hctx, cancel = context.WithDeadline(ctx, dl)
 		}
 	}
+
 	if cancel != nil {
 		defer cancel()
 	}
 
-	// Run user handler.
 	err := w.h.Handle(hctx, msg)
 
 	if err == nil {
-		// Ack on success.
 		ackErr := w.c.Ack(ctx, AckRequest{
 			Topic:     w.opt.Topic,
 			Group:     w.opt.Group,
@@ -160,7 +161,6 @@ func (w *Worker) handleOne(ctx context.Context, msg ConsumeMessage) {
 		return
 	}
 
-	// Nack on failure.
 	reason := w.nackReason(hctx, msg, err)
 	if len(reason) > w.maxReason {
 		reason = reason[:w.maxReason]
@@ -174,6 +174,7 @@ func (w *Worker) handleOne(ctx context.Context, msg ConsumeMessage) {
 		Offset:    msg.Offset,
 		Reason:    reason,
 	})
+
 	if nackErr != nil {
 		w.report(nackErr)
 	}
