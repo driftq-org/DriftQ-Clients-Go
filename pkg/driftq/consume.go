@@ -1,28 +1,45 @@
 package driftq
 
 import (
-	"bufio"
 	"context"
 	"encoding/json"
-	"fmt"
+	"errors"
+	"io"
 	"net/http"
 	"net/url"
+	"strconv"
+	"strings"
 )
 
-func (c *Client) ConsumeStream(ctx context.Context, opt ConsumeOptions) (<-chan ConsumedMessage, <-chan error, error) {
-	if opt.Topic == "" || opt.Group == "" || opt.Owner == "" {
-		return nil, nil, fmt.Errorf("topic, group, and owner are required")
+// ConsumeStream opens /v1/consume and decodes NDJSON items until ctx is cancelled
+// or the server closes the stream.
+//
+// IMPORTANT: this intentionally does NOT use doJSON and does NOT apply c.cfg.Timeout.
+// Streaming lifetime must be controlled by ctx (or server-side shutdown), not a generic client timeout.
+func (c *Client) ConsumeStream(ctx context.Context, opt ConsumeOptions) (<-chan ConsumeMessage, <-chan error, error) {
+	topic := strings.TrimSpace(opt.Topic)
+	group := strings.TrimSpace(opt.Group)
+	owner := strings.TrimSpace(opt.Owner)
+
+	if topic == "" || group == "" || owner == "" {
+		return nil, nil, errors.New("topic, group, and owner are required")
+	}
+	if opt.LeaseMS < 0 {
+		return nil, nil, errors.New("lease_ms must be >= 0")
 	}
 
 	q := url.Values{}
-	q.Set("topic", opt.Topic)
-	q.Set("group", opt.Group)
-	q.Set("owner", opt.Owner)
+	q.Set("topic", topic)
+	q.Set("group", group)
+	q.Set("owner", owner)
 	if opt.LeaseMS > 0 {
-		q.Set("lease_ms", fmt.Sprint(opt.LeaseMS))
+		q.Set("lease_ms", strconv.Itoa(int(opt.LeaseMS)))
 	}
 
-	u := c.baseURL + "/v1/consume?" + q.Encode()
+	u := c.baseURL + "/v1/consume"
+	if enc := q.Encode(); enc != "" {
+		u += "?" + enc
+	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
 	if err != nil {
@@ -37,44 +54,47 @@ func (c *Client) ConsumeStream(ctx context.Context, opt ConsumeOptions) (<-chan 
 
 	if resp.StatusCode >= 400 {
 		defer resp.Body.Close()
-		return nil, nil, fmt.Errorf("server returned %s", resp.Status)
+		var er ErrorResponse
+		_ = json.NewDecoder(resp.Body).Decode(&er) // best-effort
+		return nil, nil, &APIError{
+			Status:  resp.StatusCode,
+			Code:    er.Error,
+			Message: er.Message,
+		}
 	}
 
-	msgCh := make(chan ConsumedMessage)
-	errCh := make(chan error, 1)
+	msgs := make(chan ConsumeMessage)
+	errs := make(chan error, 1)
 
 	go func() {
+		defer close(msgs)
+		defer close(errs)
 		defer resp.Body.Close()
-		defer close(msgCh)
-		defer close(errCh)
 
-		sc := bufio.NewScanner(resp.Body)
-		buf := make([]byte, 0, 64*1024)
-		sc.Buffer(buf, 4*1024*1024)
+		dec := json.NewDecoder(resp.Body)
 
-		for sc.Scan() {
-			line := sc.Bytes()
-			if len(line) == 0 {
-				continue
-			}
-
-			var m ConsumedMessage
-			if err := json.Unmarshal(line, &m); err != nil {
-				errCh <- fmt.Errorf("decode NDJSON: %w", err)
+		for {
+			var m ConsumeMessage
+			if err := dec.Decode(&m); err != nil {
+				// normal shutdown cases
+				if errors.Is(err, io.EOF) || ctx.Err() != nil {
+					return
+				}
+				// report unexpected decode/read errors without deadlocking
+				select {
+				case errs <- err:
+				default:
+				}
 				return
 			}
 
 			select {
-			case msgCh <- m:
+			case msgs <- m:
 			case <-ctx.Done():
 				return
 			}
 		}
-
-		if err := sc.Err(); err != nil && ctx.Err() == nil {
-			errCh <- err
-		}
 	}()
 
-	return msgCh, errCh, nil
+	return msgs, errs, nil
 }

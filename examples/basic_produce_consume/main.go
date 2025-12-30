@@ -18,8 +18,7 @@ func main() {
 
 	topic := "demo"
 
-	// Create topic (ignore error if it already exists)
-	_ = cli.Admin().CreateTopic(ctx, topic)
+	_, _ = cli.Admin().CreateTopic(ctx, topic, 1)
 
 	pr, err := cli.Produce(ctx, driftq.ProduceRequest{
 		Topic: topic,
@@ -29,8 +28,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	log.Printf("produced status=%s topic=%s", pr.Status, pr.Topic)
 
-	// Ack/Nack require owner + id from a consume lease.
-	log.Printf("next: implement ConsumeStream; then you can Ack/Nack this id with owner.")
+	log.Printf("produced status=%s topic=%s", pr.Status, pr.Topic)
+	log.Printf("next: run a consumer stream and Ack/Nack using partition+offset+owner.")
 }
