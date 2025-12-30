@@ -10,13 +10,10 @@ import (
 )
 
 func (c *Client) doJSON(ctx context.Context, method, path string, q url.Values, in any, out any) error {
-	// Apply per-request timeout ONLY for non-stream JSON calls
-	if c.cfg.Timeout > 0 {
-		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, c.cfg.Timeout)
-		defer cancel()
-	}
+	return c.doJSONWithHeaders(ctx, method, path, q, nil, in, out)
+}
 
+func (c *Client) doJSONWithHeaders(ctx context.Context, method, path string, q url.Values, hdr http.Header, in any, out any) error {
 	u := c.baseURL + path
 	if len(q) > 0 {
 		u += "?" + q.Encode()
@@ -37,8 +34,16 @@ func (c *Client) doJSON(ctx context.Context, method, path string, q url.Values, 
 	}
 
 	req.Header.Set("Accept", "application/json")
+	if ua := c.cfg.UserAgent; ua != "" {
+		req.Header.Set("User-Agent", ua)
+	}
 	if in != nil {
 		req.Header.Set("Content-Type", "application/json")
+	}
+	for k, vs := range hdr {
+		for _, v := range vs {
+			req.Header.Add(k, v)
+		}
 	}
 
 	resp, err := c.httpc.Do(req)
